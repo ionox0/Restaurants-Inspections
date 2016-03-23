@@ -51,5 +51,86 @@ barplot(verminHist, names.arg=xlab, ylim=c(0,2500), ylab='Count', xlab='Vermin')
 # Roaches             04M     656
 # Flies               04N     1359
 
+data = read.csv('restaurants_addresses_arcmap.csv')
 
+
+
+
+library(animation)
+library(ggmap)
+signs = read.csv('rat_signs.csv', header=TRUE, fileEncoding='latin1')
+newSigns = data.frame(signs$LATITUDE, signs$LONGITUDE, signs$INSPECTION_DATE)
+newSigns$dateFormatted = as.Date(newSigns$signs.INSPECTION_DATE, "%m/%d/%y")
+
+#### Inspection Data
+#### Join this dataset's lat longs with original dataset violations data
+#### Subset the data to just dates where both datasets have data.
+
+# Deduped data with one entry per restaurant
+idata = read.csv('data5.csv', header=TRUE)
+idata$dateFormatted = as.Date(idata$INSPECTION.DATE, "%m/%d/%Y")
+
+
+# Raw Data
+raw = read.csv('Rats_Rest_LL.csv', header=TRUE, fileEncoding = 'latin1')
+# 3000 Rats violations:
+ratsRaw = subset(raw, VIOLATION.CODE == '04K')
+ratsRaw$dateFormatted = as.Date(ratsRaw$INSPECTION.DATE, "%m/%d/%Y")
+
+
+# Limit rat sightings data to just Feb 06, 2012 onwards (data from inspections)
+idataLatest = subset(idata, dateFormatted > '2012-02-06')
+
+
+d = as.Date('2015-01-01')
+
+map = get_map('newyork', maptype='terrain', source='google')
+
+map <- ggmap(map, base_layer = ggplot(aes(x = signs.LONGITUDE, y = signs.LATITUDE),
+                                       data = newSigns)) +
+  geom_point(data = subset(newSigns, dateFormatted <= d & dateFormatted >= d-30),
+           aes(x = signs.LONGITUDE, y = signs.LATITUDE, size = 1),
+           alpha = 0.5, color='blue') +
+  geom_point(data = subset(idata, dateFormatted <= d & dateFormatted >= d-30),
+           aes(x = XCoord, y = YCoord,  size = 3),
+           alpha = 0.5, color='red') +
+  coord_cartesian(xlim = c(-74.10, -73.70), ylim=c(40.5, 40.95))
+
+
+###########
+saveHTML({
+  ani.options(interval = 0.3)
+  for (d in as.Date("2015-12-01"):as.Date("2016-01-01")) {
+  
+    map_2 <- ggmap(map, base_layer = ggplot(
+      aes(x = signs.LONGITUDE, y = signs.LATITUDE),
+      data = newSigns)) + 
+      
+    geom_point(
+      data = subset(newSigns, dateFormatted <= d & dateFormatted >= d-30), 
+      aes(x = signs.LONGITUDE, y = signs.LATITUDE, size = 1),
+      alpha = 0.5, color='blue') +
+    
+    geom_point(data = subset(idata, dateFormatted <= d & dateFormatted >= d-30),
+        aes(x = XCoord, y = YCoord, size = 3),
+        alpha = 0.5, color='red') +
+      
+    coord_cartesian(xlim = c(-74.10, -73.70), ylim=c(40.5, 40.95))
+    
+    print(map_2)
+  }
+}, img.name = "rats", imgdir = "ian", 
+htmlfile = "rats.html", 
+outdir = getwd(), autobrowse = FALSE, ani.height = 680, ani.width = 800, 
+verbose = FALSE, autoplay = TRUE, 
+title = "Rats sightings mapped over time")
+
+
+
+remove(d)
+
+remove(causes)
+remove(causeColors)
+remove(x)
+remove(worldMap)
 
