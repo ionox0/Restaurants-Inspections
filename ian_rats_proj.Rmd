@@ -1,0 +1,99 @@
+---
+title: "ian_animation"
+author: "ian johnson"
+date: "March 27, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(plyr)
+library(ggmap)
+library(animation)
+
+setwd('~/Desktop/Columbia/EDAV/Project3')
+```
+
+# Abstract
+  In this report we present our findings regarding the analysis of data regarding NYC restaurant inspection scores from the New York City Health Department, joined with several other datasets including location-based income, and New York City rats sightings. Our goal was to find out the coorelation between counts and locations of rodent and insect-related restaurant violations, across categories such as zip code and restaurant type. 
+
+  In addition, we present our findings on the coorelation between violations of different types, and join this dataset with others datasets that detail location-based income information, as well as general rat-sightings information. We use ArcMap, a tool that is part of the ArgGis suite of geospatial tools, to derive latitude and longitude information from our dataset which originally includes only addresses, and then map this new geoencoded scoring and violations data using ggmap and ggplot. 
+
+
+# Scoring Details Background information
+Scoring was calculated based on several categories of negative restaurant cleanliness. Violations from any of these categories resulted in points being added to the restaurants inspection score, and the lower the score was, the better:
+
+- Food handling
+- Food temperature
+- Personal hygiene
+- Facility and equipment maintenance
+- Vermin control
+
+The points for a particular violation depend on the health risk it poses to the public. Violations fall into three categories: 
+
+- A public health hazard, such as failing to keep food at the right temperature, triggers a minimum of 7 points. If the violation can’t be corrected before the inspection ends, the Health Department may close the restaurant until it’s fixed. 
+- A critical violation, for example, serving raw food such as a salad without properly washing it first, carries a minimum of 5 points. 
+- A general violation, such as not properly sanitizing cooking utensils, receives at least 2 points. 
+
+Conversion from Points to Grade:
+
+- Restaurants with a score between 0 and 13 points earn an A
+- Those with 14 to 27 points receive a B
+- Those with 28 or more a C.
+
+
+
+
+
+
+
+
+
+## General Rats Sightings Data
+
+We incorporated a separate data set from <> detailing sightings of rats in NYC, and used this data to display on a map where these sightings occurred during the year 2015. This animation is best viewed at higher speed, in which case we can notice what appears to be some coorelated movement of rat sighting clusters in certain ares, including Morningside Heights and the Bronx.  Our map shows us that certain areas which received rat violations (violation code O4K) were associated with rat sightings during the year 2015. However, while it appears that there may be some coorelation between rats sightings and rats violations form our restaurant data, these sightings are too numerous to draw any conclusions about the relationship between these two datasets. It should also be noted that several factors may have contributed to decreased accuracy of this dataset, including the locations and schedules of the inspectors that were reporting these sightings.
+
+Please click <a href='rats_signs.html'>here</a> to view this location data. Hitting "open in browser" may provide for faster and smoother rendering.
+
+```{r include=FALSE, fig.width=7, fig.height=6, fig.show='animate'}
+# Raw Data of all Rats Sightings
+signs = read.csv('rat_signs.csv', header=TRUE, fileEncoding='latin1')
+newSigns = data.frame(signs$LATITUDE, signs$LONGITUDE, signs$INSPECTION_DATE)
+newSigns$dateFormatted = as.Date(newSigns$signs.INSPECTION_DATE, "%m/%d/%y")
+
+map = get_map('newyork', maptype='terrain', source='google')
+
+saveHTML({
+  ani.options(interval = 0.3)
+  for (d in as.Date("2015-01-01"):as.Date("2015-12-30")) {
+  
+    map_2 = ggmap(map) +
+      
+    geom_point(
+      data = subset(newSigns, dateFormatted <= d & dateFormatted >= d-30),
+      aes(x = signs.LONGITUDE, y = signs.LATITUDE),
+      alpha = 0.5, color="blue"
+    )
+      
+    map_2 <- map_2 + coord_cartesian(xlim = c(-74.10, -73.70), ylim=c(40.5, 40.95))
+    
+    print(map_2)
+  }
+}, 
+img.name = "rats_signs", imgdir = "rats_signs_images", 
+htmlfile = "rats_signs.html", 
+outdir = getwd(), autobrowse = FALSE, ani.height = 680, ani.width = 800, 
+verbose = FALSE, autoplay = TRUE, 
+title = "Documented NYC Rats Sightings - 2015")
+```
+
+
+
+
+
+
+# Conclusions
+
+  From these data we draw several key points concerning the relationships among vermin and insect-related restaurants violations, and the types and locations of the establishments in which they occur. Our findings show that mice and flies are the most common of our animal=related violations, with cockroaches and rats coming in at third and fourth. Coorelations analysis show that there are certain categories of restaurants which seem to exhibit higher counts of these violations, and mapping the data shows that there may be some relationship between the counts of these violations, and the areas in which they occur. 
+  
+  Future analyses of this data might involve the plotting of rats violations alongside of our general rats sightings data, to more precisely determine the relationship between these two datasets. We might also consider other relationships such as the time of year, and whether this may have an affect on the counts or locations of these violations. In addition, it may be possible to bring in further datasets for analysis, and include other factors such as Yelp ratings, or restaurant cost. With such data, we may be able to further study the relationships among the factors that go into creating a healthy, successful eating establishment, and how higher standards for New York City restaurants may be established.
