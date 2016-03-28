@@ -1,0 +1,144 @@
+---
+title: "NYC Vermin vs Income"
+author: "Pawel Buczak"
+date: "March 27, 2016"
+output: html_document
+---
+
+##Comparing Vermin Violations with IRS Income Data
+
+To analyze further where vermin violations are likeliest to occur, we attach average income data by zip code from IRS tax returns. We use the newest data available, which is from 2013. From the restaurant inspection data, for each zip code with at least 10 inspections since 2015 we consider the percentage of restaurants whose most recent inspection included a vermin violation. To best visualize the data, we trellis the plot into 4 based on vermin type:
+
+```{r, echo=FALSE}
+# ######!!!!!!!!!!! This chunk here could be removed, and use just one person's version (and rename "inspectionData_2015" to whatever name was used by the master version)
+inspectionResults <- read.csv("Restaurant Inspection Data.csv", fileEncoding = 'latin1')
+# Take only latest inspections for each restaurant (after 2015-01-01)
+inspectionResults$dateConverted = as.Date(as.character(inspectionResults$GRADE.DATE), '%d/%m/%Y')
+inspectionData_2015 = subset(inspectionResults, dateConverted > as.Date('2015-01-01'))
+inspectionData_2015 = inspectionData_2015[!duplicated(inspectionData_2015[,1]),]
+```
+
+```{r, echo=FALSE}
+ny2013IncomeByZipCode <- read.csv("ny2013IncomeByZipCode.csv")
+ny2013IncomeByZipCode$avgIncome = ny2013IncomeByZipCode$totalIncome_amount / ny2013IncomeByZipCode$totalIncome_returns
+colnames(ny2013IncomeByZipCode)[1] = "ZIPCODE"
+
+
+library("plyr", lib.loc="~/R/win-library/3.2")
+
+tmp = count(inspectionData_2015, "ZIPCODE")
+colnames(tmp)[2] = "numInspections"
+
+zips = 
+merge(x = tmp,
+      y = ny2013IncomeByZipCode[, c("ZIPCODE", "avgIncome")],
+      by = "ZIPCODE")
+      
+tmp = count(subset(inspectionData_2015, VIOLATION.CODE =='04K'), "ZIPCODE")
+colnames(tmp)[2] = "Rats" 
+
+zips = merge(x = zips, 
+             y = tmp,
+             by = "ZIPCODE",
+             all.x = TRUE)
+
+
+tmp = count(subset(inspectionData_2015, VIOLATION.CODE =='04L'), "ZIPCODE")
+colnames(tmp)[2] = "Mice" 
+
+zips = merge(x = zips, 
+             y = tmp,
+             by = "ZIPCODE",
+             all.x = TRUE)
+
+
+tmp = count(subset(inspectionData_2015, VIOLATION.CODE =='04M'), "ZIPCODE")
+colnames(tmp)[2] = "Roaches" 
+
+zips = merge(x = zips, 
+             y = tmp,
+             by = "ZIPCODE",
+             all.x = TRUE)
+
+
+tmp = count(subset(inspectionData_2015, VIOLATION.CODE =='04N'), "ZIPCODE")
+colnames(tmp)[2] = "Flies" 
+
+zips = merge(x = zips, 
+             y = tmp,
+             by = "ZIPCODE",
+             all.x = TRUE)
+
+remove(tmp)
+
+zips$Rats = zips$Rats / zips$numInspections
+zips$Mice = zips$Mice / zips$numInspections
+zips$Roaches = zips$Roaches / zips$numInspections
+zips$Flies = zips$Flies / zips$numInspections
+
+zips[is.na(zips)] = 0
+
+library(reshape2)
+zips10plus = subset(zips, numInspections >= 10)
+meltedZips10plus = melt(zips10plus[, c("ZIPCODE", "avgIncome", "Rats", "Mice", "Roaches", "Flies")], 
+                  id.vars = c("ZIPCODE", "avgIncome"), 
+                  variable.name = "vermin", value.name = "positiveInspectionRate")
+
+meltedZips10plus$vermin = as.character(meltedZips10plus$vermin)
+
+library(ggplot2)
+
+ggplot(data = meltedZips10plus, 
+       aes(x = avgIncome, y = positiveInspectionRate)) + 
+  geom_point() +
+  geom_smooth(method = "lm", formula = y~log(x), se = FALSE) +
+  coord_trans(x = "log10") +
+  scale_y_continuous(labels = scales::percent) +
+  facet_grid(. ~ vermin) +
+  xlab("2013 Avg Income in Zip Code (log scale)") + 
+  ylab("% Restaurant Most Recent Inspections with Vermin Violation") + 
+  theme(axis.text=element_text(size = 7),
+        axis.title = element_text(size=12),
+        strip.text = element_text(size=18, face="bold"))
+
+
+```
+
+The results generally agree with what we might expect to see. First, the plot reiterates that there is a clear order of how common the different vermin types are (mice are most common, followed by flies, roaches, and finally rats). More interesting is the added information of average income in the zip code, which is a decent proxy for how wealthy each restaurant's neighborhood is. Here we see that wealthier neighborhoods are generally less likely to have vermin violations, but the relationship is not extremely strong. 
+
+Since there are considerably more of certain vermin violations than others (e.g. much more mice than rats), it is difficult to discern whether any types of vermin violations are more sensitive to neighborhood income. To see this better, we convert the percent of vermin violations by zip code into Z-scores for improved comparability between the vermin types:
+
+```{r, echo = FALSE}
+
+zips$RatsZScore = (zips$Rats - mean(zips$Rats)) / sd(zips$Rats)
+zips$MiceZScore = (zips$Mice - mean(zips$Mice)) / sd(zips$Mice)
+zips$RoachesZScore = (zips$Roaches - mean(zips$Roaches)) / sd(zips$Roaches)
+zips$FliesZScore = (zips$Flies - mean(zips$Flies)) / sd(zips$Flies)
+
+zips10plusZScores = subset(zips, numInspections >= 10)
+meltedZips10plusZScores = melt(zips10plusZScores[, c("ZIPCODE", "avgIncome", "RatsZScore", "MiceZScore", "RoachesZScore", "FliesZScore")], 
+                  id.vars = c("ZIPCODE", "avgIncome"), 
+                  variable.name = "vermin", value.name = "positiveInspectionRateZScore")
+
+meltedZips10plusZScores$vermin = as.character(meltedZips10plusZScores$vermin)
+meltedZips10plusZScores$vermin = replace(meltedZips10plusZScores$vermin, meltedZips10plusZScores$vermin == "RatsZScore", "Rats")
+meltedZips10plusZScores$vermin = replace(meltedZips10plusZScores$vermin, meltedZips10plusZScores$vermin == "MiceZScore", "Mice")
+meltedZips10plusZScores$vermin = replace(meltedZips10plusZScores$vermin, meltedZips10plusZScores$vermin == "RoachesZScore", "Roaches")
+meltedZips10plusZScores$vermin = replace(meltedZips10plusZScores$vermin, meltedZips10plusZScores$vermin == "FliesZScore", "Flies")
+
+ggplot(data = meltedZips10plusZScores, 
+       aes(x = avgIncome, y = positiveInspectionRateZScore)) + 
+  geom_point() +
+  geom_smooth(method = "lm", formula = y~log(x), se = FALSE) +
+  coord_trans(x = "log10") +
+  facet_grid(. ~ vermin) +
+  xlab("2013 Avg Income in Zip Code (log scale)") + 
+  ylab("Z-Score Vermin Violations") + 
+  theme(axis.text=element_text(size = 7),
+        axis.title = element_text(size=12),
+        strip.text = element_text(size=18, face="bold"))
+
+
+```
+
+Here it is clear that certain types of vermin violations are more sensitive to the neighborhood income by the slope of the fitted line. Mice and roach violations are much less common in wealthier zip codes while the relationship is less strong for flies and rats. This is a somewhat unexpected effect - one might logically expect to see the same type of relationship, if any at all, between the different vermin type violation amounts and neighborhood income. This suggests that a separate variable such as perhaps cuisine type or some physical location characteristic would serve as a better predictor of flies and rat violations. 
